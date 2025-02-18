@@ -1,6 +1,6 @@
 'use client';
 
-import { ComponentProps } from 'react';
+import { ComponentProps, useEffect } from 'react';
 import {
   CaretDown,
   CaretUp,
@@ -9,9 +9,14 @@ import {
   Link,
   MarkdownLogo,
   PencilSimple,
+  SignOut,
   TextH,
   TextT,
+  User,
 } from '@phosphor-icons/react';
+import { signOut } from 'firebase/auth';
+import { useAuthState, useSignInWithGoogle } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import { useLayout } from './LayoutProvider';
 import { Button } from './ui/button';
@@ -19,8 +24,17 @@ import { Button } from './ui/button';
 /* eslint-disable jsx-a11y/alt-text */
 
 export default function Toolbar() {
+  const [signInWithGoogle] = useSignInWithGoogle(auth);
+  const [user, , error] = useAuthState(auth);
+
+  useEffect(() => {
+    if (!error) return;
+    console.error(error?.message ?? error);
+  }, [error]);
+
   const { toolbarOpen, editing, setToolbarOpen, setEditing, addBox } =
     useLayout();
+
   return (
     <div
       className={cn(
@@ -59,6 +73,15 @@ export default function Toolbar() {
           <ToolbarButton onClick={() => setToolbarOpen(false)}>
             <CaretDown size={32} weight="bold" />
           </ToolbarButton>
+          {user ? (
+            <ToolbarButton variant="destructive" onClick={() => signOut(auth)}>
+              <SignOut size={32} />
+            </ToolbarButton>
+          ) : (
+            <ToolbarButton onClick={() => signInWithGoogle()}>
+              <User size={32} weight="bold" />
+            </ToolbarButton>
+          )}
         </>
       ) : (
         <Button

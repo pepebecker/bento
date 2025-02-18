@@ -13,7 +13,7 @@ export default function BoxContentHeading({ box }: Props) {
   const { editing, updateBox } = useLayout();
 
   const setText = useCallback(
-    (id: number, content: string) => {
+    (id: string, content: string) => {
       updateBox(id, (box) => ({ ...box, text: { ...box.text, content } }));
     },
     [updateBox]

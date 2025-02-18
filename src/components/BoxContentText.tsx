@@ -14,7 +14,7 @@ export default function BoxContentText({ box }: Props) {
   const { editing, updateBox } = useLayout();
 
   const setTextContent = useCallback(
-    (id: number, content: string) => {
+    (id: string, content: string) => {
       updateBox(id, (box) => ({ ...box, text: { ...box.text, content } }));
     },
     [updateBox]

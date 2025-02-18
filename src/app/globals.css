@@ -75,10 +75,17 @@ body {
   }
 }
 
+.react-grid-item.cssTransforms {
+  transition-property: none;
+}
+.animated .react-grid-item.cssTransforms {
+  transition-property: transform;
+}
+
 .react-grid-item.react-grid-placeholder {
-  background: gray;
+  background: white;
   transition-duration: 300ms;
-  @apply opacity-10;
+  @apply opacity-20;
   @apply rounded-2xl;
   @apply z-0;
 }

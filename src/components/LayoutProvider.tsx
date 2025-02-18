@@ -5,16 +5,19 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from 'react';
+import { ref, remove, set } from 'firebase/database';
+import omitBy from 'lodash.omitby';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import {
   ItemCallback,
   Layout,
   Layouts,
   ResponsiveProps,
 } from 'react-grid-layout';
+import { auth, db } from '@/lib/firebase';
 import { Box, BoxType, Boxes } from '@/types/box';
 
 const MIN_WIDTH = 200;
@@ -46,8 +49,8 @@ interface LayoutContextType {
   setToolbarOpen: (open: boolean) => void;
   setEditing: (editing: boolean) => void;
   addBox: (type: BoxType) => void;
-  updateBox: (id: number, fn: (box: Box) => Box) => void;
-  removeBox: (id: number) => void;
+  updateBox: (id: string, fn: (box: Box) => Box) => void;
+  removeBox: (id: string) => void;
 }
 
 const LayoutContext = createContext<LayoutContextType>({
@@ -63,70 +66,81 @@ const LayoutContext = createContext<LayoutContextType>({
   removeBox: () => {},
 });
 
+export function omitUndefined<T extends object>(obj: T): T {
+  if (Array.isArray(obj)) return obj.map((v) => omitUndefined(v)) as T;
+  return omitBy(obj, (v) => typeof v === 'undefined') as T;
+}
+
 interface LayoutProviderProps {
+  boxes?: Boxes;
+  layouts?: Layouts;
   children: ReactNode;
 }
 
-export const LayoutProvider = ({ children }: LayoutProviderProps) => {
+export const LayoutProvider = (props: LayoutProviderProps) => {
+  const [user] = useAuthState(auth);
+
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [boxes, setBoxes] = useState<Record<string, Box>>({});
+  const [boxes, setBoxes] = useState<Record<string, Box>>(props.boxes ?? {});
+  const [layouts, setLayouts] = useState<Layouts>(
+    props.layouts ?? DEFAULT_LAYOUTS
+  );
   const [currentBreakpoint, setCurrentBreakpoint] = useState<string>('xxs');
-  const [layouts, setLayouts] = useState<Layouts>(DEFAULT_LAYOUTS);
+  const boxesList = useMemo(() => Object.values(boxes), [boxes]);
 
-  useEffect(() => {
-    loadBoxes()
-      .then((boxes) => boxes && setBoxes(boxes))
-      .then(loadLayouts)
-      .then((layouts) => layouts && setLayouts(layouts));
-  }, []);
-
-  const boxesList = useMemo(() => {
-    return Object.values(boxes);
-  }, [boxes]);
+  // useEffect(() => {
+  //   loadBoxes()
+  //     .then((boxes) => boxes && setBoxes(boxes))
+  //     .then(loadLayouts)
+  //     .then((layouts) => layouts && setLayouts(layouts));
+  // }, []);
 
   const onBreakpointChange = useCallback((breakpoint: string) => {
     setCurrentBreakpoint(breakpoint);
   }, []);
 
-  const onResizeStop: ItemCallback = useCallback(
-    (newLayout) => {
-      const newLayouts = { ...layouts };
-      newLayouts[currentBreakpoint] = newLayout;
+  const updateLayout = useCallback(
+    (breakpoint: string, newLayout: Layout[]) => {
+      newLayout = omitUndefined(newLayout);
+      const newLayouts = { ...layouts, [breakpoint]: newLayout };
       setLayouts(newLayouts);
-      saveLayouts(layouts);
+      saveLayouts(newLayouts);
+      if (user) {
+        set(ref(db, `users/${user.uid}/layouts/${breakpoint}`), newLayout);
+      }
     },
-    [currentBreakpoint, layouts]
+    [layouts, user]
+  );
+
+  const onResizeStop: ItemCallback = useCallback(
+    (newLayout) => updateLayout(currentBreakpoint, newLayout),
+    [currentBreakpoint, updateLayout]
   );
 
   const onDragStop: ItemCallback = useCallback(
-    (newLayout) => {
-      const newLayouts = { ...layouts };
-      newLayouts[currentBreakpoint] = newLayout;
-      setLayouts(newLayouts);
-      saveLayouts(layouts);
-    },
-    [currentBreakpoint, layouts]
+    (newLayout) => updateLayout(currentBreakpoint, newLayout),
+    [currentBreakpoint, updateLayout]
   );
 
   const addBox = useCallback(
     (type: BoxType) => {
-      const boxId = Math.max(...Object.keys(boxes).map(Number), 0) + 1;
-      const box: Box = { id: boxId, type };
+      const boxId = crypto.randomUUID();
+      const newBox: Box = { id: boxId, type };
 
       if (type === 'heading') {
-        box.text = { align: 'left', content: 'Heading' };
+        newBox.text = { align: 'left', content: 'Heading' };
       }
 
       if (type === 'text') {
-        box.text = { align: 'left', content: 'Text' };
+        newBox.text = { align: 'left', content: 'Text' };
       }
 
       if (type === 'markdown') {
-        box.text = { align: 'left', content: '### Markdown' };
+        newBox.text = { align: 'left', content: '### Markdown' };
       }
 
-      const newItem: Layout = {
+      const newLayoutItem: Layout = {
         i: boxId.toString(),
         x: 0,
         y: 0,
@@ -134,54 +148,79 @@ export const LayoutProvider = ({ children }: LayoutProviderProps) => {
         h: 1,
       };
 
-      console.log('addBox', box, newItem);
+      console.log('addBox', newBox, newLayoutItem);
 
       setBoxes((boxes) => {
         const newBoxes = {
           ...boxes,
-          [boxId.toString()]: box,
+          [boxId.toString()]: newBox,
         };
         saveBoxes(newBoxes);
         return newBoxes;
       });
 
       setLayouts((layouts) => {
-        layouts.xxs.push(newItem);
+        layouts.xxs.push(newLayoutItem);
         saveLayouts(layouts);
         return { ...layouts };
       });
+
+      if (user) {
+        set(ref(db, `users/${user.uid}/boxes/${boxId}`), newBox);
+      }
     },
-    [boxes]
+    [user]
   );
 
-  const updateBox = useCallback((id: number, fn: (box: Box) => Box) => {
-    console.log('updateBox:', id);
-    setBoxes((boxes) => {
-      boxes[id] = fn(boxes[id]);
-      saveBoxes(boxes);
-      return { ...boxes };
-    });
-  }, []);
+  const updateBox = useCallback(
+    (id: string, fn: (box: Box) => Box) => {
+      console.log('updateBox:', id);
+      setBoxes((boxes) => {
+        boxes[id] = fn(boxes[id]);
+        saveBoxes(boxes);
+        if (user) {
+          set(ref(db, `users/${user.uid}/boxes/${id}`), boxes[id]);
+        }
+        return { ...boxes };
+      });
+    },
+    [user]
+  );
 
-  const removeBox = useCallback((id: number) => {
-    console.log('removeBox:', id);
-    setBoxes((boxes) => {
-      delete boxes[id];
-      saveBoxes(boxes);
-      return { ...boxes };
-    });
+  const removeBox = useCallback(
+    (id: string) => {
+      console.log('removeBox:', id);
+      setBoxes((boxes) => {
+        delete boxes[id];
+        saveBoxes(boxes);
+        return { ...boxes };
+      });
 
-    setLayouts((layouts) => {
-      const newLayouts = { ...layouts };
-      for (const key in layouts) {
-        layouts[key] = layouts[key].filter((item) => item.i !== id.toString());
+      setLayouts((layouts) => {
+        const newLayouts = { ...layouts };
+        for (const key in layouts) {
+          layouts[key] = layouts[key].filter(
+            (item) => item.i !== id.toString()
+          );
+        }
+        saveLayouts(newLayouts);
+        return newLayouts;
+      });
+
+      if (user) {
+        remove(ref(db, `users/${user.uid}/boxes/${id}`));
+        for (const key in layouts) {
+          set(
+            ref(db, `users/${user.uid}/layouts/${key}`),
+            layouts[key].filter((item) => item.i !== id.toString())
+          );
+        }
       }
-      saveLayouts(newLayouts);
-      return newLayouts;
-    });
-  }, []);
+    },
+    [layouts, user]
+  );
 
-  const props: ResponsiveProps = useMemo(
+  const rglProps: ResponsiveProps = useMemo(
     () => ({
       layouts,
       breakpoints: BREAKPOINTS,
@@ -201,7 +240,7 @@ export const LayoutProvider = ({ children }: LayoutProviderProps) => {
       toolbarOpen,
       editing,
       boxes: boxesList,
-      props,
+      props: rglProps,
       minWidth: MIN_WIDTH,
       setToolbarOpen,
       setEditing,
@@ -209,11 +248,13 @@ export const LayoutProvider = ({ children }: LayoutProviderProps) => {
       updateBox,
       removeBox,
     }),
-    [addBox, boxesList, editing, props, removeBox, toolbarOpen, updateBox]
+    [addBox, boxesList, editing, removeBox, rglProps, toolbarOpen, updateBox]
   );
 
   return (
-    <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>
+    <LayoutContext.Provider value={value}>
+      {props.children}
+    </LayoutContext.Provider>
   );
 };
 
@@ -226,25 +267,19 @@ async function saveLayouts(layouts: Layouts) {
   localStorage.setItem('layouts', data);
 }
 
-async function loadLayouts(): Promise<Layouts | undefined> {
-  // const data = localStorage.getItem('layouts');
-  // if (!data) return;
-  // return JSON.parse(data);
-  const res = await fetch('/data/layouts.json');
-  const data = await res.json();
-  return data;
-}
+// async function loadLayouts(): Promise<Layouts | undefined> {
+// const data = localStorage.getItem('layouts');
+// if (!data) return;
+// return JSON.parse(data);
+// }
 
 async function saveBoxes(boxes: Boxes) {
   const data = JSON.stringify(boxes);
   localStorage.setItem('boxes', data);
 }
 
-async function loadBoxes(): Promise<Boxes | undefined> {
-  // const data = localStorage.getItem('boxes');
-  // if (!data) return;
-  // return JSON.parse(data);
-  const res = await fetch('/data/boxes.json');
-  const data = await res.json();
-  return data;
-}
+// async function loadBoxes(): Promise<Boxes | undefined> {
+// const data = localStorage.getItem('boxes');
+// if (!data) return;
+// return JSON.parse(data);
+// }

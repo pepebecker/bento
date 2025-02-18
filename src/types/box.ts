@@ -3,7 +3,7 @@ import { CSSProperties } from 'react';
 export type BoxType = 'heading' | 'text' | 'markdown' | 'image' | 'link';
 
 export interface Box {
-  id: number;
+  id: string;
   type: BoxType;
   link?: string;
   text?: {
