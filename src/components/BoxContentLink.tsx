@@ -16,7 +16,12 @@ const BoxContentLink = memo(({ box }: Props) => {
   }, [box.link]);
 
   return (
-    <div className="h-full w-full" style={{ padding: box.image?.padding }}>
+    <a
+      href={box.link}
+      target="_blank"
+      className="h-full w-full"
+      style={{ padding: box.image?.padding }}
+    >
       <img
         className="h-full w-full"
         src={
@@ -27,7 +32,7 @@ const BoxContentLink = memo(({ box }: Props) => {
           objectFit: box.image?.objectFit ?? 'cover',
         }}
       />
-    </div>
+    </a>
   );
 });
 
