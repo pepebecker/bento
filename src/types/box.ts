@@ -1,6 +1,12 @@
 import { CSSProperties } from 'react';
 
-export type BoxType = 'heading' | 'text' | 'markdown' | 'image' | 'link';
+export type BoxType =
+  | 'heading'
+  | 'text'
+  | 'markdown'
+  | 'image'
+  | 'link'
+  | 'iframe';
 
 export interface Box {
   id: string;

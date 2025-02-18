@@ -6,6 +6,7 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import BoxContentHeading from './BoxContentHeading';
+import BoxContentIframe from './BoxContentIframe';
 import BoxContentImage from './BoxContentImage';
 import BoxContentLink from './BoxContentLink';
 import BoxContentText from './BoxContentText';
@@ -109,6 +110,11 @@ const GridLayout = memo(() => {
               {box.type === 'link' ? (
                 <Suspense fallback="Loading...">
                   <BoxContentLink box={box} />
+                </Suspense>
+              ) : null}
+              {box.type === 'iframe' ? (
+                <Suspense fallback="Loading...">
+                  <BoxContentIframe box={box} />
                 </Suspense>
               ) : null}
             </div>

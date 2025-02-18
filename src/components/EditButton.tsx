@@ -6,6 +6,7 @@ import {
   Image,
   Link,
   MarkdownLogo,
+  Selection,
   TextAlignCenter,
   TextAlignJustify,
   TextAlignLeft,
@@ -197,6 +198,9 @@ export default function EditButton({ box }: { box: Box }) {
           <ToggleGroupItem className="flex-grow" value="link">
             <Link size={24} weight="bold" />
           </ToggleGroupItem>
+          <ToggleGroupItem className="flex-grow" value="iframe">
+            <Selection size={24} weight="bold" />
+          </ToggleGroupItem>
         </ToggleGroup>
         {box.type === 'heading' ||
         box.type === 'text' ||
@@ -236,7 +240,7 @@ export default function EditButton({ box }: { box: Box }) {
             <ColorButton color="skyblue" onSelect={setTextColor} />
           </div>
         ) : null}
-        {box.type === 'link' ? (
+        {box.type === 'link' || box.type === 'iframe' ? (
           <div className="flex flex-wrap gap-1">
             <label className="w-full">Link</label>
             <Input
