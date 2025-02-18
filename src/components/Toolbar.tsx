@@ -1,6 +1,6 @@
 'use client';
 
-import { ComponentProps, useEffect } from 'react';
+import { ComponentProps, useCallback, useEffect } from 'react';
 import {
   CaretDown,
   CaretUp,
@@ -9,13 +9,15 @@ import {
   Link,
   MarkdownLogo,
   PencilSimple,
+  Selection,
   SignOut,
   TextH,
   TextT,
   User,
 } from '@phosphor-icons/react';
-import { signOut } from 'firebase/auth';
+import { signOut as fbSigbOut, getIdToken } from 'firebase/auth';
 import { useAuthState, useSignInWithGoogle } from 'react-firebase-hooks/auth';
+import { serverSignIn, serverSignOut } from '@/actions/auth';
 import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import { useLayout } from './LayoutProvider';
@@ -23,9 +25,21 @@ import { Button } from './ui/button';
 
 /* eslint-disable jsx-a11y/alt-text */
 
+async function signOut() {
+  await serverSignOut();
+  await fbSigbOut(auth);
+}
+
 export default function Toolbar() {
   const [signInWithGoogle] = useSignInWithGoogle(auth);
   const [user, , error] = useAuthState(auth);
+
+  const signIn = useCallback(async () => {
+    const credential = await signInWithGoogle();
+    if (!credential) return;
+    const idToken = await getIdToken(credential.user);
+    await serverSignIn(idToken);
+  }, [signInWithGoogle]);
 
   useEffect(() => {
     if (!error) return;
@@ -70,15 +84,18 @@ export default function Toolbar() {
           <ToolbarButton hidden={!editing} onClick={() => addBox('image')}>
             <Image size={32} weight="bold" />
           </ToolbarButton>
+          <ToolbarButton hidden={!editing} onClick={() => addBox('iframe')}>
+            <Selection size={32} weight="bold" />
+          </ToolbarButton>
           <ToolbarButton onClick={() => setToolbarOpen(false)}>
             <CaretDown size={32} weight="bold" />
           </ToolbarButton>
           {user ? (
-            <ToolbarButton variant="destructive" onClick={() => signOut(auth)}>
+            <ToolbarButton variant="destructive" onClick={signOut}>
               <SignOut size={32} />
             </ToolbarButton>
           ) : (
-            <ToolbarButton onClick={() => signInWithGoogle()}>
+            <ToolbarButton onClick={signIn}>
               <User size={32} weight="bold" />
             </ToolbarButton>
           )}
