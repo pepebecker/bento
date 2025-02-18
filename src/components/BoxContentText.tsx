@@ -37,11 +37,11 @@ export default function BoxContentText({ box }: Props) {
     <textarea
       className={cn(
         'h-full w-full resize-none overflow-y-scroll bg-transparent p-4 focus:outline-none',
-        { 'font-mono text-[0.8em]': box.type === 'markdown' }
+        { 'font-mono text-[0.9em]': box.type === 'markdown' }
       )}
       style={{
         color: box.text?.color,
-        textAlign: box.type === 'markdown' ? 'left' : box.text?.align,
+        textAlign: box.text?.align,
       }}
       value={box.text?.content ?? ''}
       onChange={(e) => setTextContent(box.id, e.target.value)}
